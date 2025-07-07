@@ -15,7 +15,7 @@
 🛠️ Установка
 
 1. Клонируй репозиторий:
-   git clone https://github.com/твой-логин/notio-bot-repo.git
+   git clone https://github.com/Shiba178/Notio_Bot
    cd notio-bot-repo
 2. **Создай виртуальное окружение и установи зависимости:**
 python -m venv venv
