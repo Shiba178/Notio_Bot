@@ -4,4 +4,4 @@
 pip install -r requirements.txt
 
 # Запуск бота
-python bot.py
+python notio_bot/bot.py
