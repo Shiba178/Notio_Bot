@@ -1,6 +1,8 @@
+# bot.py
 import os
 import json
 import logging
+import re
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
@@ -14,44 +16,103 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_KEY = os.environ.get("OPENAI_API_KEY")
 client = OpenAI(api_key=OPENAI_KEY)
 
-# Инициализация базы данных и планировщика
 init_db()
 start_scheduler()
 
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
+# --- Локальный парсер команд ---
+def parse_command(text: str):
+    lower_text = text.lower()
+
+    # Напоминание: "напомни мне в 12:00 15.07 позвонить врачу"
+    match = re.match(r"напомни мне (в|на|через)?\s*(.+?)\s+(.*)", lower_text)
+    if match:
+        time_part = match.group(2)
+        task = match.group(3)
+        try:
+            # Поддержка формата 15.07.25 12:00
+            dt = datetime.strptime(time_part.strip(), "%d.%m.%y %H:%M")
+            return {
+                "action": "создать_событие",
+                "details": {
+                    "название": task,
+                    "дата": dt.strftime("%d.%m.%y %H:%M"),
+                    "напоминание_за": 1
+                }
+            }
+        except ValueError:
+            pass
+
+    # Заметка: "создай заметку с названием: идея и содержанием: запустить магазин"
+    match = re.match(r"создай заметку с названием[:\-]?\s*(.*?)\s+и содержанием[:\-]?\s*(.*)", lower_text)
+    if match:
+        name = match.group(1).strip()
+        content = match.group(2).strip()
+        return {
+            "action": "создать_заметку",
+            "details": {
+                "название": name,
+                "содержание": content,
+                "теги": []
+            }
+        }
+
+    # Календарь: "запомни, что 16.07.25 14:00 встреча с командой"
+    match = re.match(r"запомни[,]?\s*что\s*(\d{2}\.\d{2}\.\d{2}\s+\d{2}:\d{2})\s+(.*)", lower_text)
+    if match:
+        date = match.group(1)
+        name = match.group(2)
+        return {
+            "action": "создать_событие",
+            "details": {
+                "название": name,
+                "дата": date,
+                "напоминание_за": 2
+            }
+        }
+
+    return None  # не распознано вручную
+
+# --- Основной обработчик сообщений ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_message = update.message.text.strip()
     logging.info(f"[USER {user_id}] {user_message}")
 
-    try:
-        gpt_response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Ты ассистент для Telegram-бота с функциями календаря и заметок. "
-                        "На основе запроса пользователя определи одно из действий: "
-                        "1) создать_событие, 2) показать_события, 3) создать_заметку, "
-                        "4) показать_заметки_по_тегу, 5) открыть_заметку, 6) другое. "
-                        "Ответь строго в формате JSON с ключами: action и details."
-                    )
-                },
-                {"role": "user", "content": user_message}
-            ]
-        )
+    # 1. Попробуем распознать локально
+    parsed = parse_command(user_message)
+    if parsed:
+        action = parsed["action"]
+        details = parsed["details"]
+    else:
+        # 2. Если не получилось — спрашиваем OpenAI
+        try:
+            gpt_response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Ты ассистент Telegram-бота с функциями календаря и заметок. "
+                            "На основе запроса пользователя определи одно из действий: "
+                            "1) создать_событие, 2) показать_события, 3) создать_заметку, "
+                            "4) показать_заметки_по_тегу, 5) открыть_заметку, 6) другое. "
+                            "Ответь строго в формате JSON с ключами: action и details."
+                        )
+                    },
+                    {"role": "user", "content": user_message}
+                ]
+            )
+            parsed = json.loads(gpt_response.choices[0].message.content)
+            action = parsed.get("action")
+            details = parsed.get("details", {})
+        except Exception as e:
+            logging.error(f"Ошибка парсинга OpenAI: {e}")
+            await update.message.reply_text("❗ Я не понял ваш запрос. Попробуйте иначе.")
+            return
 
-        parsed = json.loads(gpt_response.choices[0].message.content)
-        action = parsed.get("action")
-        details = parsed.get("details", {})
-
-    except Exception as e:
-        logging.error(f"Ошибка парсинга ответа ИИ: {e}")
-        await update.message.reply_text("❗ Я не понял ваш запрос, попробуйте иначе.")
-        return
-
+    # 3. Выполняем действие
     try:
         if action == "создать_событие":
             event_name = details["название"]
@@ -102,8 +163,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("🤖 Не уверен, как помочь с этим. Попробуйте переформулировать.")
 
     except Exception as e:
-        logging.error(f"Ошибка при обработке действия: {e}")
-        await update.message.reply_text("⚠️ Произошла внутренняя ошибка. Попробуйте снова позже.")
+        logging.error(f"Ошибка при выполнении действия: {e}")
+        await update.message.reply_text("⚠️ Внутренняя ошибка. Попробуйте позже.")
 
+# --- Запуск ---
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.run_polling()
