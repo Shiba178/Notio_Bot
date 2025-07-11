@@ -67,8 +67,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             days = int(details.get("дней", 7))
             events = get_upcoming_events(user_id, days)
             if events:
-                msg = "📅 Ваши планы:
-" + "\n".join(
+                msg = "📅 Ваши планы:\n" + "\n".join(
                     [f"— {e['event_name']} — {e['event_date']}" for e in events]
                 )
             else:
@@ -86,8 +85,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             tag = details["тег"]
             notes = get_notes_by_tag(user_id, tag)
             if notes:
-                msg = "📚 Заметки:
-" + "\n".join([f"- {n['note_name']}" for n in notes])
+                msg = "📚 Заметки:\n" + "\n".join([f"- {n['note_name']}" for n in notes])
             else:
                 msg = "📭 Заметок с таким тегом нет."
             await update.message.reply_text(msg)
@@ -102,6 +100,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         else:
             await update.message.reply_text("🤖 Не уверен, как помочь с этим. Попробуйте переформулировать.")
+            except Exception as e:
+        logging.error(f"Ошибка при выполнении действия: {e}")
+        await update.message.reply_text("⚠️ Произошла ошибка при выполнении запроса.")
 
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.run_polling()
