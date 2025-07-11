@@ -3,7 +3,7 @@ import json
 import logging
 from datetime import datetime
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 from openai import OpenAI
 from db import init_db, add_event, get_upcoming_events, add_note, get_notes_by_tag, get_note_by_name
 from scheduler import start_scheduler
@@ -100,9 +100,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         else:
             await update.message.reply_text("🤖 Не уверен, как помочь с этим. Попробуйте переформулировать.")
-            except Exception as e:
-        logging.error(f"Ошибка при выполнении действия: {e}")
-        await update.message.reply_text("⚠️ Произошла ошибка при выполнении запроса.")
+
+    except Exception as e:
+        logging.error(f"Ошибка при обработке действия: {e}")
+        await update.message.reply_text("⚠️ Произошла внутренняя ошибка. Попробуйте снова позже.")
 
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-app.run_polling()   
+app.run_polling()
