@@ -12,7 +12,8 @@ from telegram.ext import (
 
 from db import (
     init_db, add_event, get_upcoming_events, delete_event,
-    add_note, get_notes_by_tag, get_note_by_name, delete_note, rename_note
+    add_note, get_notes_by_tag, get_note_by_name, delete_note, rename_note,
+    delete_events_in_period  # <-- Новый импорт
 )
 from scheduler import start_scheduler
 
@@ -23,6 +24,15 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 init_db()
 start_scheduler()
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+
+def get_day_word(days: int) -> str:
+    if days % 10 == 1 and days % 100 != 11:
+        return "день"
+    elif 2 <= days % 10 <= 4 and (days % 100 < 10 or days % 100 >= 20):
+        return "дня"
+    else:
+        return "дней"
 
 
 def parse_date_time(date_str, time_str):
@@ -88,6 +98,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❗ Такой записи не существует.")
         return
 
+    match = re.match(r"отмени записи на ближайшие (\d+) (?:день|дня|дней)", text_lower)
+    if match:
+        try:
+            days = int(match.group(1))
+            if days < 0:
+                await update.message.reply_text("⚠️ Количество дней не может быть отрицательным.")
+                return
+
+            deleted_count = delete_events_in_period(user_id, days)
+            day_word = get_day_word(days)
+
+            if deleted_count > 0:
+                await update.message.reply_text(
+                    f"🗑️ Удалено {deleted_count} записей за ближайшие {days} {day_word}."
+                )
+            else:
+                await update.message.reply_text(
+                    f"📭 Нет записей за ближайшие {days} {day_word}."
+                )
+        except Exception as e:
+            logging.error(f"[DELETE_EVENTS_IN_PERIOD] {e}")
+            await update.message.reply_text("⚠️ Ошибка при удалении записей. Попробуйте позже.")
+        return
+
     match = re.match(r"(создай|запиши) заметку[,:]?\s*(.+?):\s*(.+?)(?: с тегом (.+))?$", text_lower)
     if match:
         try:
@@ -113,7 +147,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             note_list = "\n".join([f"- {n['note_name']}" for n in notes])
             await update.message.reply_text(f"📚 Заметки с тегом '{tag}':\n{note_list}")
         else:
-            await update.message.reply_text("📭 С указанным тегом пока нет заметок.")
+            await update.message.reply_text("ostringstream С указанным тегом пока нет заметок.")
         return
 
     match = re.match(r"открой содержимое заметки (.+)", text_lower)
