@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+import sys
 from datetime import datetime
 from telegram import Update
 from telegram.ext import (
@@ -9,17 +10,14 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-
 from db import (
     init_db, add_event, get_upcoming_events, delete_event,
     add_note, get_notes_by_tag, get_note_by_name, delete_note, rename_note,
     delete_events_in_period
 )
 from scheduler import start_scheduler
+from telegram.error import Forbidden, RetryAfter, TimedOut
+from time import sleep
 
 logging.basicConfig(level=logging.INFO)
 
@@ -53,6 +51,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
     text_lower = text.lower()
+
+    match = re.match(r"/restart", text_lower)
+    if match:
+        try:
+            await update.message.reply_text("🔄 Бот перезапускается... Подождите 5 секунд.")
+            logging.info(f"[RESTART] Бот перезапущен пользователем {user_id}")
+        except Exception as e:
+            logging.error(f"[RESTART ERROR] Ошибка при отправке сообщения о перезагрузке: {e}")
+        finally:
+            os.execl(sys.executable, sys.executable, *sys.argv)
 
     match = re.match(r"запомни (\d{2}\.\d{2}) в (\d{2}:\d{2}) (.+?)(?: напомни в (\d{2}:\d{2}))?$", text_lower)
     if match:
@@ -88,7 +96,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply = f"📅 На ближайшие {days} дней:\n" + "\n".join(
                 [f"{e['event_date'].strftime('%d.%m %H:%M')} {e['event_name']}" for e in events])
         else:
-            reply = "📭 Нет запланированных событий."
+            reply = "ostringstream Нет запланированных событий."
         await update.message.reply_text(reply)
         return
 
@@ -119,7 +127,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             else:
                 await update.message.reply_text(
-                    f"📭 Нет записей за ближайшие {days} {day_word}."
+                    f"ostringstream Нет записей за ближайшие {days} {day_word}."
                 )
         except Exception as e:
             logging.error(f"[DELETE_EVENTS_IN_PERIOD] {e}")
