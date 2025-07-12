@@ -29,7 +29,7 @@ def init_db():
                     user_id BIGINT,
                     note_name TEXT,
                     note_content TEXT,
-                    tag TEXT
+                    tags TEXT
                 );
             """)
             conn.commit()
@@ -69,14 +69,14 @@ def delete_event(user_id, name):
 # ==================== Работа с заметками ====================
 def add_note(user_id, name, content, tags):
     try:
-        tag = str(tags[0]) if tags and isinstance(tags[0], str) else None
-        print(f"DEBUG >> add_note: user_id={user_id}, name={name}, content={content}, tag={tag}")
+        tag_str = str(tags[0]) if tags and isinstance(tags[0], str) else None
+        print(f"DEBUG >> add_note: user_id={user_id}, name={name}, content={content}, tags={tag_str}")
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO notes (user_id, note_name, note_content, tag)
+                    INSERT INTO notes (user_id, note_name, note_content, tags)
                     VALUES (%s, %s, %s, %s);
-                """, (user_id, name, content, tag))
+                """, (user_id, name, content, tag_str))
                 conn.commit()
     except Exception as e:
         print(f"[DB ERROR] add_note: {e}")
@@ -87,7 +87,7 @@ def get_notes_by_tag(user_id, tag):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT note_name FROM notes
-                WHERE user_id = %s AND LOWER(tag) = LOWER(%s);
+                WHERE user_id = %s AND LOWER(tags) = LOWER(%s);
             """, (user_id, tag))
             return cur.fetchall()
 
@@ -95,7 +95,7 @@ def get_note_by_name(user_id, name):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT note_name, note_content, tag FROM notes
+                SELECT note_name, note_content, tags FROM notes
                 WHERE user_id = %s AND LOWER(note_name) = LOWER(%s);
             """, (user_id, name))
             return cur.fetchone()
