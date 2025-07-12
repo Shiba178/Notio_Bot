@@ -1,4 +1,4 @@
-# notio_bot/session_manager.py
+# session_manager.py
 
 from collections import defaultdict
 
