@@ -68,14 +68,19 @@ def delete_event(user_id, name):
 
 # ==================== Работа с заметками ====================
 def add_note(user_id, name, content, tags):
-    tag = tags[0] if tags else None
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO notes (user_id, note_name, note_content, tag)
-                VALUES (%s, %s, %s, %s);
-            """, (user_id, name, content, tag))
-            conn.commit()
+    try:
+        tag = str(tags[0]) if tags and isinstance(tags[0], str) else None
+        print(f"DEBUG >> add_note: user_id={user_id}, name={name}, content={content}, tag={tag}")
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO notes (user_id, note_name, note_content, tag)
+                    VALUES (%s, %s, %s, %s);
+                """, (user_id, name, content, tag))
+                conn.commit()
+    except Exception as e:
+        print(f"[DB ERROR] add_note: {e}")
+        raise
 
 def get_notes_by_tag(user_id, tag):
     with get_conn() as conn:
