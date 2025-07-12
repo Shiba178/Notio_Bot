@@ -17,7 +17,7 @@ from db import (
     add_note, get_notes_by_tag, get_note_by_name, delete_note, rename_note
 )
 from scheduler import start_scheduler
-from session_manager import switch_mode
+
 
 logging.basicConfig(level=logging.INFO)
 
