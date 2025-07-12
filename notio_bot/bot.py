@@ -17,6 +17,7 @@ from db import (
     add_note, get_notes_by_tag, get_note_by_name, delete_note, rename_note
 )
 from scheduler import start_scheduler
+from notio_bot.session_manager import switch_mode_and_cleanup  # <--- ВАЖНО
 
 logging.basicConfig(level=logging.INFO)
 
@@ -43,6 +44,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
     text_lower = text.lower()
+
+    # Сохраняем ID входящего сообщения
+    context.user_data.setdefault("messages_to_delete", []).append(update.message.message_id)
 
     # 1. Добавление события
     match = re.match(r"запомни (\d{2}\.\d{2}) в (\d{2}:\d{2}) (.+?)(?: напомни в (\d{2}:\d{2}))?$", text_lower)
@@ -92,7 +96,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if deleted:
             await update.message.reply_text(f"🗑️ Запись '{event_name}' удалена!")
         else:
-            await update.message.reply_text("❗ Такой записи не существует, ознакомьтесь со списком и попробуйте ещё раз.")
+            await update.message.reply_text("❗ Такой записи не существует.")
         return
 
     # 4. Создание заметки
@@ -160,7 +164,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❗ Такой заметки не существует.")
         return
 
-    # Команда не распознана
     await update.message.reply_text(
         "❗ Команда не распознана. Убедитесь, что вы используете точный шаблон.\n"
         "Например:\n`создай заметку ДЗ: выучить ИИ с тегом учеба`",
@@ -177,14 +180,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "👋 Добро пожаловать!\nПеред использованием обязательно ознакомьтесь с возможностями ниже:",
+        "👋 Добро пожаловать!\nВыберите режим работы:",
         reply_markup=reply_markup
     )
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = query.from_user.id
     await query.answer()
+
+    # Очищаем предыдущие сообщения и переключаем режим
+    await switch_mode_and_cleanup(query, context, query.data)
 
     if query.data == 'calendar':
         await query.message.reply_text(
