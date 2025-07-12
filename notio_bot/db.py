@@ -1,7 +1,7 @@
 import psycopg2
 import psycopg2.extras
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 DB_URL = os.environ.get("DATABASE_URL")
 
@@ -65,6 +65,23 @@ def delete_event(user_id, name):
             deleted = cur.fetchone()
             conn.commit()
             return deleted is not None
+
+def delete_events_in_period(user_id, days):
+    now = datetime.now()
+    end_date = now + timedelta(days=days)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM events
+                WHERE user_id = %s
+                  AND event_date >= %s
+                  AND event_date <= %s
+                RETURNING *;
+            """, (user_id, now, end_date))
+            deleted_count = cur.rowcount
+            conn.commit()
+            return deleted_count
 
 # ==================== Работа с заметками ====================
 def add_note(user_id, name, content, tags):
