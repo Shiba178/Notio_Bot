@@ -10,10 +10,14 @@ from telegram.ext import (
     filters
 )
 
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+
 from db import (
     init_db, add_event, get_upcoming_events, delete_event,
     add_note, get_notes_by_tag, get_note_by_name, delete_note, rename_note,
-    delete_events_in_period  # <-- Новый импорт
+    delete_events_in_period
 )
 from scheduler import start_scheduler
 
